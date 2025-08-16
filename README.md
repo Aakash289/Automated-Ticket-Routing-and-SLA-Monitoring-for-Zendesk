@@ -2,11 +2,11 @@
 
 This project streamlines Zendesk ticket management by automatically prioritizing support requests and monitoring SLA compliance.
 
-Problem Statement
+Problem Statement:
 
 Manually tracking and triaging tickets can lead to delays, SLA breaches, and poor customer experience. High-priority tickets (VIP or urgent) require immediate attention, while normal tickets should still be monitored for overdue conditions. This workflow reduces manual effort by automating ticket handling and alerting.
 
-Key Features
+Key Features:
 
 Automatic Ticket Tagging: Identifies and assigns tags to urgent and normal tickets.
 
@@ -18,7 +18,7 @@ Priority Handling: Ensures urgent tickets are escalated to the right channel qui
 
 Seamless Zendesk Integration: Connects directly with Zendesk for real-time updates.
 
-KPIs Tracked
+KPIs Tracked:
 
 Number of urgent tickets tagged
 
@@ -30,27 +30,59 @@ SLA compliance rate
 
 Response time for urgent tickets
 
-Workflow Overview
+Workflow Overview:
 
-The workflow is built in n8n and consists of the following steps:
+Trigger Node
 
-Trigger Node – Starts the workflow when new tickets are created or updated.
+Starts the workflow when a new ticket is created or updated in Zendesk.
 
-Compute Thresholds – Defines SLA deadlines for urgent and normal tickets.
+Compute SLA Thresholds (Set Node)
 
-IF Node (Urgency Check) – Splits tickets into Urgent or Normal.
+Defines the SLA limits (e.g., urgent tickets = 1 hr, normal tickets = 24 hrs).
 
-True (Urgent): Tickets tagged as urgent and sent for escalation.
+This is where you establish the "deadline" logic.
 
-False (Normal): Tickets tagged as normal and monitored for SLA.
+IF Node – Urgency Check
 
-Zendesk Update Nodes – Updates ticket tags in Zendesk.
+Looks at the ticket’s priority or tags.
 
-Overdue Check – Compares ticket age with SLA thresholds.
+Branches into two flows:
 
-Slack Node – Sends notifications to the support team for overdue or urgent tickets.
+True (Urgent branch)
 
-Tools & Technologies
+Updates the ticket in Zendesk with the "urgent" tag.
+
+Runs overdue check specific to urgent SLA threshold.
+
+If overdue → sends a Slack alert to the urgent channel.
+
+False (Normal branch)
+
+Updates the ticket in Zendesk with the "normal" tag.
+
+Runs overdue check specific to normal SLA threshold.
+
+If overdue → sends a Slack alert to the general support channel.
+
+Zendesk Update Nodes
+
+Apply tags ("urgent" or "normal") directly in Zendesk.
+
+These are separate nodes for each branch.
+
+Overdue Check (IF / Compare Node)
+
+Compares current time vs. ticket creation/last update.
+
+If ticket age > SLA threshold → triggers escalation.
+
+Slack Notification Nodes
+
+Sends alert messages to Slack.
+
+Different channels/messages based on urgency.
+
+Tools & Technologies:
 
 n8n: Workflow automation tool
 
@@ -58,7 +90,7 @@ Zendesk: Customer support ticketing system
 
 Slack: Team collaboration and notification platform
 
-How to Use
+How to Use:
 
 Import the workflow JSON into your n8n instance.
 
@@ -70,7 +102,7 @@ Activate the workflow to automatically monitor tickets.
 
 Check Slack for overdue alerts and Zendesk for updated tags.
 
-Benefits
+Benefits:
 
 Reduced SLA breaches
 
