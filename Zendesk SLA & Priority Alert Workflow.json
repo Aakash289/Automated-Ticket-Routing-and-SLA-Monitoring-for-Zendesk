@@ -1,0 +1,450 @@
+{
+  "name": "Zendesk SLA & Priority Alert Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zendesk/ticket-created",
+        "options": {
+          "responseData": "={\"ok\": true}"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        80
+      ],
+      "name": "Webhook: Zendesk Ticket Created",
+      "id": "f8f5811a-b210-48a5-b60a-01f618ccecd9",
+      "webhookId": "b734fce9-9a52-463b-bd01-16070bd5bf76"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        80
+      ],
+      "name": "Classify & Prepare",
+      "id": "bf620471-b0ef-48f1-9e97-a3932c6a7ac2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.vip}}",
+              "operation": "isTrue"
+            },
+            {
+              "value1": "={{$json.isUrgent}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        80
+      ],
+      "name": "VIP or Urgent?",
+      "id": "40db5d07-616b-444e-a611-56a39cad41ce"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "jsonParameters": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        400,
+        176
+      ],
+      "name": "Slack: Triaged (Info)",
+      "id": "89e8c8d1-3603-4f1b-ae97-c284ee0e9cc4"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "jsonParameters": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        400,
+        -16
+      ],
+      "name": "Slack: Page #support-sev1",
+      "id": "c9d02ab6-5572-4f39-9f6e-15ca951b6a3a"
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 10,
+              "unit": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        496
+      ],
+      "name": "Cron: Every 10 minutes",
+      "id": "b6de163f-616a-42a9-8561-9b154bb7f34a"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        496
+      ],
+      "name": "Compute Thresholds",
+      "id": "ae80c703-79ec-4947-bb51-c9f4addcea17"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.ZENDESK_BASE_URL}}/api/v2/search.json?query={{'type:ticket status<solved tags:auto_triaged updated<' + $json.urgentBefore + ' priority:urgent'}}",
+        "options": {},
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Content-Type",
+              "value": "=application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{$string('Basic ' + $env.ZENDESK_BASIC_TOKEN)}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        176,
+        400
+      ],
+      "name": "Find Urgent Overdue",
+      "id": "7b1d2170-08d1-4aa8-b040-da632e773439"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.ZENDESK_BASE_URL}}/api/v2/search.json?query={{'type:ticket status<solved tags:auto_triaged updated<' + $json.normalBefore + ' -priority:urgent'}}",
+        "options": {},
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{$string('Basic ' + $env.ZENDESK_BASIC_TOKEN)}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        176,
+        592
+      ],
+      "name": "Find Normal Overdue",
+      "id": "4c3d1777-b431-4224-87d0-8a15c6165959"
+    },
+    {
+      "parameters": {
+        "jsCode": "function format(list, label){\n  const items = (list || []).slice(0, 20)\n    .map(t => `#${t.id} — ${String(t.subject||'').substring(0,70)}`);\n  return items.length ? `*${label}*\\n` + items.join('\\n') : '';\n}\n\nconst urgent = $node[\"Find Urgent Overdue\"].json.results || [];\nconst normal = $node[\"Find Normal Overdue\"].json.results || [];\n\nconst text = [format(urgent,'Urgent FRT breaches'),\n              format(normal,'Normal FRT breaches')]\n              .filter(Boolean).join('\\n\\n');\n\nreturn [{ json: { text } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        400,
+        496
+      ],
+      "name": "Summarize for Slack",
+      "id": "1d30e276-76f8-47d2-99f9-41cb51b7e9e8"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.text}}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        624,
+        496
+      ],
+      "name": "Anything to alert?",
+      "id": "7f4ed3a8-ea8e-4a9a-a64c-89d61979fb6f"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "jsonParameters": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        848,
+        480
+      ],
+      "name": "Slack: SLA Alert",
+      "id": "a93f2a38-6278-4f8e-88f5-4b2365ff8e6a"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cc8ae4d2-3ee3-40d0-bdd3-7b6fa2721a6d",
+              "leftValue": "={{ $json.isUrgent }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -48,
+        496
+      ],
+      "id": "284fcd39-d37b-4e52-8141-3ab85dcd9e29",
+      "name": "Is Urgent?"
+    },
+    {
+      "parameters": {
+        "requestMethod": "PUT",
+        "url": "={{$env.ZENDESK_BASE_URL}}/api/v2/tickets/{{$json.id}}.json",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"ticket\": {\n    \"priority\": \"normal\",\n    \"tags\": {{$json.tags}}\n  }\n}",
+        "headerParametersJson": "={{$string('Basic ' + $env.ZENDESK_BASIC_TOKEN)}}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        176,
+        176
+      ],
+      "name": "Zendesk: Update Priority & Tags Normal",
+      "id": "eff0802e-73a9-4c51-88fe-d209b21b3615"
+    },
+    {
+      "parameters": {
+        "requestMethod": "PUT",
+        "url": "={{$env.ZENDESK_BASE_URL}}/api/v2/tickets/{{$json.id}}.json",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"ticket\": {\n    \"priority\": \"urgent\",\n    \"tags\": {{$json.tags}}\n  }\n}",
+        "headerParametersJson": "=Basic {{$env.ZENDESK_BASIC_TOKEN}}",
+        "queryParametersJson": "="
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        176,
+        -16
+      ],
+      "name": "Zendesk: Update Priority & Tags Urgent",
+      "id": "42635d07-e847-4e39-a68b-03854b9cf64a"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: Zendesk Ticket Created": {
+      "main": [
+        [
+          {
+            "node": "Classify & Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify & Prepare": {
+      "main": [
+        [
+          {
+            "node": "VIP or Urgent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VIP or Urgent?": {
+      "main": [
+        [
+          {
+            "node": "Zendesk: Update Priority & Tags Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Zendesk: Update Priority & Tags Normal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron: Every 10 minutes": {
+      "main": [
+        [
+          {
+            "node": "Compute Thresholds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Thresholds": {
+      "main": [
+        [
+          {
+            "node": "Is Urgent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Urgent Overdue": {
+      "main": [
+        [
+          {
+            "node": "Summarize for Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Normal Overdue": {
+      "main": [
+        [
+          {
+            "node": "Summarize for Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize for Slack": {
+      "main": [
+        [
+          {
+            "node": "Anything to alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to alert?": {
+      "main": [
+        [
+          {
+            "node": "Slack: SLA Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Urgent?": {
+      "main": [
+        [
+          {
+            "node": "Find Urgent Overdue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Normal Overdue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zendesk: Update Priority & Tags Normal": {
+      "main": [
+        [
+          {
+            "node": "Slack: Triaged (Info)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zendesk: Update Priority & Tags Urgent": {
+      "main": [
+        [
+          {
+            "node": "Slack: Page #support-sev1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "64baece4-240b-4cf4-b4cf-0c6289741172",
+  "meta": {
+    "instanceId": "d80179e6a3c3fbb0dcb5e7ae3056585e1fb17fb9ce6be06a2bcbafc25613a13a"
+  },
+  "id": "6CewywONXnHYc2TA",
+  "tags": []
+}
